@@ -6,12 +6,14 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/order"
+	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/batch"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/transport/http/handlers"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/transport/http/ws"
 )
 
 func NewRouter(
 	orderSvc *order.Service,
+	batchSvc *batch.Service,
 	hub *ws.Hub,
 	) http.Handler {
 	r := chi.NewRouter()
@@ -21,7 +23,7 @@ func NewRouter(
 	r.Get("/ws", handlers.WebSocketHandler(hub))
 
 	r.Route("/orders", func(r chi.Router) {
-		r.Post("/", handlers.CreateOrder(orderSvc, hub))
+		r.Post("/", handlers.CreateOrder(orderSvc, batchSvc, hub))
 	})
 	
 	return r

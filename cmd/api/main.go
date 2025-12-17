@@ -23,7 +23,7 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:	cfg.HTTPAddr,
+		Addr:		cfg.HTTPAddr,
 		Handler:	application.Router,
 	}
 

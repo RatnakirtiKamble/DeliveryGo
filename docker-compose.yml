@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: deliverygo_user
+      POSTGRES_PASSWORD: delivery
+      POSTGRES_DB: deliverygo
+    ports:
+      - "5433:5432"
