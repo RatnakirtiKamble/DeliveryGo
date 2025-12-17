@@ -12,6 +12,8 @@ const (
 type Batch struct {
 	ID			string
 	Status 		BatchStatus
+	Capacity	int
+	CurrentSize int
 	CreatedAt 	time.Time 
 }
 

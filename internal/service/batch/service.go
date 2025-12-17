@@ -19,15 +19,6 @@ func (s *Service) AssignOrder(
 	ctx context.Context,
 	orderID string,
 ) (*domain.Batch, error) {
-
-	batch, err := s.store.GetOpenBatch(ctx)
-	if err == nil {
-		if err := s.store.AddOrderToBatch(ctx, batch.ID, orderID); err != nil {
-			return nil, err
-		}
-		return batch, nil 
-	}
-
-	return s.store.CreateOpenBatchWithOrder(ctx, orderID)
+	return s.store.AssignOrderTx(ctx, orderID)
 }
 
