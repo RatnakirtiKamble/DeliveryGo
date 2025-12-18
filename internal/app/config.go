@@ -3,13 +3,15 @@ package app
 import (
 	"log"
 	"os"
-
+	"strings"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	HTTPAddr    string
-	PostgresDSN string
+	HTTPAddr    	string
+	PostgresDSN 	string
+	RedisAddr		string 
+	KafkaBrokers	[]string
 }
 
 func LoadConfig() Config {
@@ -18,6 +20,11 @@ func LoadConfig() Config {
 	cfg := Config{
 		HTTPAddr:    getEnv("HTTP_ADDR", ":8000"),
 		PostgresDSN: getEnv("POSTGRES_DSN", ""),
+		RedisAddr:   getEnv("REDIS_ADDR", "localhost:6379"),
+		KafkaBrokers: strings.Split(
+			getEnv("KAFKA_BROKERS", "localhost:9092"),
+			",",
+		),
 	}
 
 	if cfg.PostgresDSN == "" {
