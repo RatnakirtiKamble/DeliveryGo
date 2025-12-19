@@ -43,6 +43,8 @@ func New(cfg Config) (*App, error) {
 
 	producer := kafkaq.NewProducer(cfg.KafkaBrokers)
 
+	batchPathStore := pg.NewBatchPathStore(pool)
+
 	hub := ws.NewHub()
 
 	router := httpt.NewRouter(
@@ -50,8 +52,10 @@ func New(cfg Config) (*App, error) {
 		batchService,
 		matchingService,
 		pathIndex,
+		batchPathStore,
 		producer,
 		hub,
+		
 	)
 
 	return &App{

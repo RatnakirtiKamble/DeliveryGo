@@ -2,14 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
-	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/batch"
-	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/order"
-	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/matching"
-	"github.com/RatnakirtiKamble/DeliveryGO/internal/store/redis"
 	kafkaq "github.com/RatnakirtiKamble/DeliveryGO/internal/queue/kafka"
+	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/batch"
+	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/matching"
+	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/order"
+	"github.com/RatnakirtiKamble/DeliveryGO/internal/store/redis"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/transport/http/ws"
+	"github.com/RatnakirtiKamble/DeliveryGO/internal/util"
 )
 
 type createOrderRequest struct {
@@ -51,6 +53,7 @@ func CreateOrder(
 			req.Lon,
 		)
 		if err != nil {
+            log.Println("Failed to create order ", err)
 			http.Error(w, "failed to create order", http.StatusInternalServerError)
 			return
 		}
@@ -64,7 +67,14 @@ func CreateOrder(
 			return
 		}
 
-		h3Cell := "demo-h3-cell"
+		h3Cell := util.LatLonToH3(order.Lat, order.Lon)
+
+        if h3Cell == "" {
+            http.Error(w, "Could not determine location.", http.StatusInternalServerError)
+            return
+        }
+
+		
 
 		candidatePathIDs, err := pathIndex.GetCandidatePaths(
 			r.Context(),
@@ -75,8 +85,33 @@ func CreateOrder(
 			return
 		}
 
+		if len(candidatePathIDs) == 0 {
+			event := map[string]string{
+				"store_id": "store-1",
+				"h3"	  : h3Cell,
+			}
+
+			payload, _ := json.Marshal(event)
+
+			_ = producer.Publish(
+				r.Context(),
+				"path.provision.requested",
+				h3Cell,
+				payload,
+			)
+
+			http.Error(
+				w, 
+				"Delivery routes are being prepared for this area",
+				http.StatusConflict,
+			)
+
+			return
+		}
+
 		path, cost, err := matchingSvc.SelectBestPath(order, candidatePathIDs)
 		if err != nil {
+            log.Println("Path search error: ", err)
 			http.Error(w, "no viable path", http.StatusInternalServerError)
 			return
 		}

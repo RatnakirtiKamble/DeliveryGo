@@ -7,6 +7,8 @@ import (
 	"time"
 
 	kafkaq "github.com/RatnakirtiKamble/DeliveryGO/internal/queue/kafka"
+	"github.com/RatnakirtiKamble/DeliveryGO/internal/store/postgres"
+	redispkg "github.com/RatnakirtiKamble/DeliveryGO/internal/store/redis"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -18,12 +20,20 @@ type RouteRefineRequestedEvent struct {
 }
 
 type OptimizerWorker struct {
-	producer *kafkaq.Producer
+	producer  *kafkaq.Producer
+	pathIndex *redispkg.PathIndex
+	batchPaths *postgres.BatchPathStore
 }
 
-func NewOptimizerWorker(producer *kafkaq.Producer) *OptimizerWorker {
+func NewOptimizerWorker(
+	producer *kafkaq.Producer,
+	pathIndex *redispkg.PathIndex,
+	batchPaths *postgres.BatchPathStore,
+) *OptimizerWorker {
 	return &OptimizerWorker{
-		producer: producer,
+		producer:  	producer,
+		pathIndex: 	pathIndex,
+		batchPaths: batchPaths,
 	}
 }
 
@@ -49,16 +59,39 @@ func (w *OptimizerWorker) Handle(
 	)
 
 	start := time.Now()
-	time.Sleep(200 * time.Millisecond) 
+
+	time.Sleep(200 * time.Millisecond)
 	refinedCost := evt.EstimatedCost + 15
 	elapsed := time.Since(start).Milliseconds()
 
+	if err := w.batchPaths.UpsertBatchPath(
+		ctx, 
+		evt.BatchID,
+		evt.PathID,
+	); err != nil {
+		return err
+	}
+
+	if err := w.pathIndex.BindBatchToPath(
+		ctx,
+		evt.PathID,
+		evt.BatchID,
+	); err != nil {
+		return err
+	}
+
+	log.Printf(
+		"[optimizer-worker] bound batch=%s to path=%s in redis",
+		evt.BatchID,
+		evt.PathID,
+	)
+
 	out := map[string]any{
-		"batch_id":        evt.BatchID,
-		"path_id":         evt.PathID,
-		"estimated_cost": evt.EstimatedCost,
-		"refined_cost":   refinedCost,
-		"optimization_ms": elapsed,
+		"batch_id":         evt.BatchID,
+		"path_id":          evt.PathID,
+		"estimated_cost":  	evt.EstimatedCost,
+		"refined_cost":    	refinedCost,
+		"optimization_ms": 	elapsed,
 	}
 
 	payload, _ := json.Marshal(out)
