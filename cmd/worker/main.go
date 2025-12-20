@@ -45,8 +45,6 @@ func main() {
 		log.Fatalf("failed to init pg pool: %v", err)
 	}
 
-	batchPathStore := pg.NewBatchPathStore(pool)
-
 	pathTemplateStore := pg.NewPathTemplateStore(pool)
 
 	producer := kafkaq.NewProducer(cfg.KafkaBrokers)
@@ -55,8 +53,7 @@ func main() {
 
 	optimizerWorker := worker.NewOptimizerWorker(
 		producer,
-		pathIndex,
-		batchPathStore,)
+	)
 
 	regretWorker := worker.NewRegretWorker()
 

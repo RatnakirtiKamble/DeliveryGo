@@ -9,7 +9,14 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
+
+  db_migrations:
+    image: flyway/flyway:9
+    depends_on:
+      - postgres
+    command: ["-url=jdbc:postgresql://postgres:5432/deliverygo","-user=deliverygo_user","-password=delivery","migrate"]
+    volumes:
+      - ./migrations:/flyway/sql
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0

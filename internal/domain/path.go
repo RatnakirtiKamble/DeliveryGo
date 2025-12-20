@@ -1,13 +1,11 @@
 package domain
 
-type PathTemplate struct {
-	ID			string 
-	StoreID		string
-	Polyline 	[]GeoPoint 
-	BaseETA 	int 
-}
+import "encoding/json"
 
-type GeoPoint struct{
-	Lat float64 
-	Lon float64
+type PathTemplate struct {
+	ID       string          `json:"id"`
+	StoreID  string          `json:"store_id"`
+	H3Cell   string          `json:"h3_cell"`
+	BaseETA  int             `json:"base_eta"`
+	Polyline json.RawMessage `json:"polyline"`
 }

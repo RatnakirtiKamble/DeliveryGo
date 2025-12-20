@@ -20,6 +20,7 @@ func NewRouter(
 	batchSvc *batch.Service,
 	matchingSvc *matching.Service,
 	pathIndex *redis.PathIndex,
+	riderCache *redis.RiderCache,
 	batchPathStore *postgres.BatchPathStore,
 	producer *kafkaq.Producer,
 	hub *ws.Hub,
@@ -42,6 +43,11 @@ func NewRouter(
 				producer,
 				hub,
 			),
+		)
+	})
+
+	r.Route("riders", func(r chi.Router) {
+		r.Post("/{id}/location", handlers.UpdateRiderLocation(riderCache),
 		)
 	})
 

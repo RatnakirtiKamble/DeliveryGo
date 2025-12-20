@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/batch"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/matching"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/order"
+	pg "github.com/RatnakirtiKamble/DeliveryGO/internal/store/postgres"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/store/redis"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/transport/http/ws"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/util"
@@ -23,6 +25,8 @@ type createOrderRequest struct {
 type createOrderResponse struct {
 	OrderID string `json:"order_id"`
 }
+
+const maxAssignRetries = 3
 
 func CreateOrder(
 	orderSvc *order.Service,
@@ -40,41 +44,42 @@ func CreateOrder(
 			return
 		}
 
+		// -------- Parse request --------
 		var req createOrderRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request", http.StatusBadRequest)
 			return
 		}
 
-		order, err := orderSvc.CreateOrder(
+		// -------- Create order --------
+		orderObj, err := orderSvc.CreateOrder(
 			r.Context(),
 			req.UserID,
 			req.Lat,
 			req.Lon,
 		)
 		if err != nil {
-            log.Println("Failed to create order ", err)
+			log.Println("failed to create order:", err)
 			http.Error(w, "failed to create order", http.StatusInternalServerError)
 			return
 		}
 
-		batch, err := batchSvc.AssignOrder(
+		// -------- Assign batch --------
+		batchObj, err := batchSvc.AssignOrder(
 			r.Context(),
-			order.ID,
+			orderObj.ID,
 		)
 		if err != nil {
 			http.Error(w, "failed to assign batch", http.StatusInternalServerError)
 			return
 		}
 
-		h3Cell := util.LatLonToH3(order.Lat, order.Lon)
-
-        if h3Cell == "" {
-            http.Error(w, "Could not determine location.", http.StatusInternalServerError)
-            return
-        }
-
-		
+		// -------- H3 lookup --------
+		h3Cell := util.LatLonToH3(orderObj.Lat, orderObj.Lon)
+		if h3Cell == "" {
+			http.Error(w, "could not determine location", http.StatusInternalServerError)
+			return
+		}
 
 		candidatePathIDs, err := pathIndex.GetCandidatePaths(
 			r.Context(),
@@ -88,7 +93,7 @@ func CreateOrder(
 		if len(candidatePathIDs) == 0 {
 			event := map[string]string{
 				"store_id": "store-1",
-				"h3"	  : h3Cell,
+				"h3":       h3Cell,
 			}
 
 			payload, _ := json.Marshal(event)
@@ -101,26 +106,73 @@ func CreateOrder(
 			)
 
 			http.Error(
-				w, 
-				"Delivery routes are being prepared for this area",
+				w,
+				"delivery routes are being prepared for this area",
 				http.StatusConflict,
 			)
-
 			return
 		}
 
-		path, cost, err := matchingSvc.SelectBestPath(order, candidatePathIDs)
-		if err != nil {
-            log.Println("Path search error: ", err)
-			http.Error(w, "no viable path", http.StatusInternalServerError)
+		var (
+			chosenPathID string
+			chosenCost   int
+			assignErr    error
+		)
+
+		for i := 0; i < maxAssignRetries; i++ {
+
+			path, cost, err := matchingSvc.SelectBestPath(
+				orderObj,
+				candidatePathIDs,
+			)
+			if err != nil {
+				log.Println("path selection error:", err)
+				http.Error(w, "no viable path", http.StatusInternalServerError)
+				return
+			}
+
+			assignErr = batchSvc.AssignBatchToPath(
+				r.Context(),
+				batchObj.ID,
+				path.ID,
+			)
+
+			if assignErr == nil {
+				chosenPathID = path.ID
+				chosenCost = cost
+				break
+			}
+
+			if errors.Is(assignErr, pg.ErrOptimisticConflict) {
+				continue 
+			}
+
+			if errors.Is(assignErr, pg.ErrBatchAtCapacity) {
+				http.Error(w, "batch at capacity", http.StatusConflict)
+				return
+			}
+
+			log.Println("failed to assign batch:", assignErr)
+			http.Error(w, "failed to assign batch", http.StatusInternalServerError)
 			return
 		}
+
+		if assignErr != nil {
+			http.Error(w, "assignment contention", http.StatusServiceUnavailable)
+			return
+		}
+
+		_ = pathIndex.BindBatchToPath(
+			r.Context(),
+			chosenPathID,
+			batchObj.ID,
+		)
 
 		event := map[string]any{
-			"batch_id":       batch.ID,
-			"path_id":        path.ID,
-			"orders":         []string{order.ID},
-			"estimated_cost": cost,
+			"batch_id":       batchObj.ID,
+			"path_id":        chosenPathID,
+			"orders":         []string{orderObj.ID},
+			"estimated_cost": chosenCost,
 		}
 
 		payload, _ := json.Marshal(event)
@@ -128,31 +180,31 @@ func CreateOrder(
 		_ = producer.Publish(
 			r.Context(),
 			"batches.assigned",
-			batch.ID,
+			batchObj.ID,
 			payload,
 		)
 
 		_ = producer.Publish(
 			r.Context(),
 			"routes.refine.requested",
-			batch.ID,
+			batchObj.ID,
 			payload,
 		)
 
 		hub.Broadcast(map[string]any{
 			"type": "batch.updated",
 			"batch": map[string]any{
-				"id":     batch.ID,
-				"status": batch.Status,
+				"id":     batchObj.ID,
+				"status": batchObj.Status,
 			},
 			"path": map[string]any{
-				"id":   path.ID,
-				"cost": cost,
+				"id":   chosenPathID,
+				"cost": chosenCost,
 			},
 		})
 
 		json.NewEncoder(w).Encode(createOrderResponse{
-			OrderID: order.ID,
+			OrderID: orderObj.ID,
 		})
 	}
 }

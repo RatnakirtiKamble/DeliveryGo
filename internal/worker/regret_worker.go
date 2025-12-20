@@ -40,6 +40,17 @@ func (w *RegretWorker) Handle(
 		return err 
 	}
 
+	if evt.EstimatedCost <= 0 {
+		log.Printf(
+			"[regret-worker] skip regret batch=%s est=%d refined=%d",
+			evt.BatchID,
+			evt.EstimatedCost,
+			evt.RefinedCost,
+		)
+		return nil
+	}
+
+
 	regret := float64(evt.RefinedCost-evt.EstimatedCost) / float64(evt.EstimatedCost)
 
 	log.Printf(

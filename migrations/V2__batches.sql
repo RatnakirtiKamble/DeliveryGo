@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS batches (
   id TEXT PRIMARY KEY,
   status TEXT NOT NULL,
+  version INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL
 );
 

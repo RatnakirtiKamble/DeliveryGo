@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 	"net/http"
+	"log"
 
-	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/order"
-	batchsvc "github.com/RatnakirtiKamble/DeliveryGO/internal/service/batch"
-	"github.com/RatnakirtiKamble/DeliveryGO/internal/service/matching"
+	orderSvc "github.com/RatnakirtiKamble/DeliveryGO/internal/service/order"
+	batchSvc "github.com/RatnakirtiKamble/DeliveryGO/internal/service/batch"
+	matchingSvc "github.com/RatnakirtiKamble/DeliveryGO/internal/service/matching"
 	pg "github.com/RatnakirtiKamble/DeliveryGO/internal/store/postgres"
 	"github.com/RatnakirtiKamble/DeliveryGO/internal/store/redis"
 	kafkaq "github.com/RatnakirtiKamble/DeliveryGO/internal/queue/kafka"
@@ -27,13 +28,33 @@ func New(cfg Config) (*App, error) {
 		return nil, err
 	}
 
+	pathTemplateStore := pg.NewPathTemplateStore(pool)
+
+	paths, err := pathTemplateStore.ListAll(ctx)
+	if err != nil {
+		return nil, err  
+	}
+
+	log.Printf("[api] loaded %d path templates", len(paths))
+
+	estimator := &matchingSvc.SimpleEstimator{}
+
+
+	matchingService := matchingSvc.NewService(
+		paths, 
+		estimator)
+
 	orderStore := pg.NewOrderStore(pool)
 	batchStore := pg.NewBatchStore(pool)
+	batchPathStore := pg.NewBatchPathStore(pool)
 
-	orderService := order.NewService(orderStore)
-	batchService := batchsvc.NewService(batchStore)
+	orderService := orderSvc.NewService(orderStore)
+	batchService := batchSvc.NewService(
+		batchStore,
+		batchPathStore)
 
-	matchingService := matching.NewService(nil, nil)
+	
+	
 
 	redisClient := goredis.NewClient(&goredis.Options{
 	Addr: cfg.RedisAddr,
@@ -42,8 +63,6 @@ func New(cfg Config) (*App, error) {
 	pathIndex := redis.NewPathIndex(redisClient)
 
 	producer := kafkaq.NewProducer(cfg.KafkaBrokers)
-
-	batchPathStore := pg.NewBatchPathStore(pool)
 
 	hub := ws.NewHub()
 
