@@ -47,6 +47,7 @@ func New(cfg Config) (*App, error) {
 	orderStore := pg.NewOrderStore(pool)
 	batchStore := pg.NewBatchStore(pool)
 	batchPathStore := pg.NewBatchPathStore(pool)
+	riderStore := pg.NewRiderStore(pool)
 
 	orderService := orderSvc.NewService(orderStore)
 	batchService := batchSvc.NewService(
@@ -60,6 +61,7 @@ func New(cfg Config) (*App, error) {
 	Addr: cfg.RedisAddr,
 	})
 
+	riderCache := redis.NewRiderCache(redisClient)
 	pathIndex := redis.NewPathIndex(redisClient)
 
 	producer := kafkaq.NewProducer(cfg.KafkaBrokers)
@@ -71,10 +73,11 @@ func New(cfg Config) (*App, error) {
 		batchService,
 		matchingService,
 		pathIndex,
+		riderCache,
 		batchPathStore,
+		riderStore,
 		producer,
 		hub,
-		
 	)
 
 	return &App{

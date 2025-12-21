@@ -34,8 +34,7 @@ func UpdateRiderLocation(
 		); err != nil {
 			http.Error(w, "failed to update location", http.StatusInternalServerError)
 			return 
-		}
-
+		} 
 		w.WriteHeader(http.StatusOK)
 	}
 }

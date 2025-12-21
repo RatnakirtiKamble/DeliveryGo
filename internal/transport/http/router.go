@@ -22,6 +22,7 @@ func NewRouter(
 	pathIndex *redis.PathIndex,
 	riderCache *redis.RiderCache,
 	batchPathStore *postgres.BatchPathStore,
+	riderStore *postgres.RiderStore,
 	producer *kafkaq.Producer,
 	hub *ws.Hub,
 ) http.Handler {
@@ -46,10 +47,16 @@ func NewRouter(
 		)
 	})
 
-	r.Route("riders", func(r chi.Router) {
-		r.Post("/{id}/location", handlers.UpdateRiderLocation(riderCache),
-		)
-	})
+	r.Post("/riders/{id}/location", handlers.UpdateRiderLocation(riderCache))
+
+	r.Post(
+		"/batches/{id}/confirm-delivery",
+		handlers.ConfirmDelivery(
+			riderCache,
+			batchPathStore,
+			riderStore,
+		),
+	)
 
 	r.Route("/debug", func(r chi.Router){
 		r.Get("/batch/{id}/path", handlers.DebugBatchPath(batchPathStore))

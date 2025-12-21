@@ -45,6 +45,9 @@ func main() {
 		log.Fatalf("failed to init pg pool: %v", err)
 	}
 
+	riderCache := redispkg.NewRiderCache(redisClient)
+	riderStore := pg.NewRiderStore(pool)
+
 	pathTemplateStore := pg.NewPathTemplateStore(pool)
 
 	producer := kafkaq.NewProducer(cfg.KafkaBrokers)
@@ -60,6 +63,12 @@ func main() {
 	provisionWorker := worker.NewPathProvisionWorker(
 		pathTemplateStore,
 		pathIndex,
+	)
+
+
+	riderAssignWorker := worker.NewRiderAssignmentWorker(
+		riderStore,
+		riderCache,
 	)
 
 	matchingConsumer := kafkaq.NewConsumer(
@@ -86,8 +95,14 @@ func main() {
 		"path-provision-workers",
 	)
 
+	riderAssignConsumer := kafkaq.NewConsumer(
+		cfg.KafkaBrokers,
+		"routes.refined.requested",
+		"rider-assignment-workers",
+	)
+
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 
 	go func() {
 		defer wg.Done()
@@ -137,7 +152,17 @@ func main() {
 		}
 	} ()
 
+	go func() {
+		defer wg.Done()
+		for {
+			msg, err := riderAssignConsumer.Read(ctx)
+			if err != nil {
+				return 
+			}
 
+			_ = riderAssignWorker.Handle(ctx, msg)
+		}
+	} ()
 
 	wg.Wait()
 	log.Println("[worker] stopped cleanly")
