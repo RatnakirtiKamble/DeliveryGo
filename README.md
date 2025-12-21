@@ -265,10 +265,6 @@ Continuously measure and improve path assignment quality over time.
 
 ---
 
-## Getting Started
-
-See the main [README.md](../README.md) for setup instructions and API documentation.
-
 ## Quickstart (local)
 
 Prereqs:
