@@ -300,23 +300,4 @@ API schema is available at [api/openapi.yaml](api/openapi.yaml).
 
 ---
 
-## Contributing
-
-- Open issues and PRs are welcome.
-- Keep changes focused and small; add tests for new behavior in `internal/`.
-
----
-
-## License
-
-This repository does not include a license file. Add a `LICENSE` to make the intended usage explicit.
-
----
-
-If you'd like, I can:
-
-- add a short developer `Makefile` or convenience scripts to run the API + worker together
-- generate a PNG/SVG diagram from the mermaid block and add it to the repo
-- add a `LICENSE` file (which one do you prefer?)
-
 Enjoy exploring DeliveryGO!
