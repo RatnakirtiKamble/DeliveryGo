@@ -42,11 +42,18 @@ Key directories:
 
 ```mermaid
 flowchart LR
-    Client[Client App] --> API[HTTP API]
-    API --> Storage[(Storage Layer)]
-    API --> Events[[Event Bus]]
-    Events --> Workers[Background Workers]
-    Workers --> Routing[OSRM Engine]
+    Client[Client App]:::frontend --> API[HTTP API]:::api
+    API --> Storage[(Storage Layer)]:::postgres
+    API --> Events[[Event Bus]]:::kafka
+    Events --> Workers[Background Workers]:::worker
+    Workers --> Routing[OSRM Engine]:::osrm
+    
+    classDef frontend fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    classDef api fill:#50C878,stroke:#2D7A4A,stroke-width:2px,color:#fff
+    classDef postgres fill:#336791,stroke:#1E3A5F,stroke-width:2px,color:#fff
+    classDef kafka fill:#231F20,stroke:#000,stroke-width:2px,color:#fff
+    classDef worker fill:#FF6B6B,stroke:#C92A2A,stroke-width:2px,color:#fff
+    classDef osrm fill:#FFA500,stroke:#CC8400,stroke-width:2px,color:#fff
 ```
 
 ---
@@ -55,18 +62,26 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Client[Client / Frontend] -->|POST /orders| API[HTTP API]
+    Client[Client / Frontend]:::frontend -->|POST /orders| API[HTTP API]:::api
     
-    API -->|1. Create Order| PG_Orders[(Postgres: orders)]
-    API -->|2. Convert to H3| H3[H3 Cell]
-    API -->|3. Lookup paths| Redis_H3[(Redis: h3 → path_ids)]
+    API -->|1. Create Order| PG_Orders[(Postgres: orders)]:::postgres
+    API -->|2. Convert to H3| H3[H3 Cell]:::compute
+    API -->|3. Lookup paths| Redis_H3[(Redis: h3 → path_ids)]:::redis
     
-    Redis_H3 -->|Paths exist| Match[Path Matching Service]
-    Redis_H3 -->|No paths| Kafka_Provision[[Kafka: path.provision]]
+    Redis_H3 -->|Paths exist| Match[Path Matching Service]:::worker
+    Redis_H3 -->|No paths| Kafka_Provision[[Kafka: path.provision]]:::kafka
     
     Match -->|4. Select best path| API
-    API -->|5. Assign to batch| PG_Batches[(Postgres: batches)]
-    API -->|6. Emit event| Kafka_Assign[[Kafka: batches.assigned]]
+    API -->|5. Assign to batch| PG_Batches[(Postgres: batches)]:::postgres
+    API -->|6. Emit event| Kafka_Assign[[Kafka: batches.assigned]]:::kafka
+    
+    classDef frontend fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    classDef api fill:#50C878,stroke:#2D7A4A,stroke-width:2px,color:#fff
+    classDef postgres fill:#336791,stroke:#1E3A5F,stroke-width:2px,color:#fff
+    classDef redis fill:#DC382D,stroke:#8B2520,stroke-width:2px,color:#fff
+    classDef kafka fill:#231F20,stroke:#000,stroke-width:2px,color:#fff
+    classDef worker fill:#FF6B6B,stroke:#C92A2A,stroke-width:2px,color:#fff
+    classDef compute fill:#9B59B6,stroke:#6C3483,stroke-width:2px,color:#fff
 ```
 
 **Key Components:**
@@ -80,22 +95,29 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Kafka_Provision[[Kafka: path.provision]] -->|consume| PathWorker[Path Provision Worker]
+    Kafka_Provision[[Kafka: path.provision]]:::kafka -->|consume| PathWorker[Path Provision Worker]:::worker
     
-    PathWorker -->|Request route| OSRM[OSRM Engine]
+    PathWorker -->|Request route| OSRM[OSRM Engine]:::osrm
     OSRM -->|Return optimized route| PathWorker
     
-    PathWorker -->|Store template| PG_Paths[(Postgres: path_templates)]
-    PathWorker -->|Index by H3| Redis_H3[(Redis: h3 → path_ids)]
+    PathWorker -->|Store template| PG_Paths[(Postgres: path_templates)]:::postgres
+    PathWorker -->|Index by H3| Redis_H3[(Redis: h3 → path_ids)]:::redis
     
-    Kafka_Refine[[Kafka: routes.refine]] -->|consume| OptimizerWorker[Optimizer Worker]
+    Kafka_Refine[[Kafka: routes.refine]]:::kafka -->|consume| OptimizerWorker[Optimizer Worker]:::worker
     
-    OptimizerWorker -->|Persist mapping| PG_BatchPath[(Postgres: batch_paths)]
-    OptimizerWorker -->|Bind batches| Redis_Path[(Redis: path → batches)]
-    OptimizerWorker -->|Emit refined| Kafka_Refined[[Kafka: routes.refined]]
+    OptimizerWorker -->|Persist mapping| PG_BatchPath[(Postgres: batch_paths)]:::postgres
+    OptimizerWorker -->|Bind batches| Redis_Path[(Redis: path → batches)]:::redis
+    OptimizerWorker -->|Emit refined| Kafka_Refined[[Kafka: routes.refined]]:::kafka
     
-    Kafka_Refined -->|consume| RegretWorker[Regret Worker]
-    RegretWorker -->|Log metrics| Metrics[(Metrics/Logs)]
+    Kafka_Refined -->|consume| RegretWorker[Regret Worker]:::worker
+    RegretWorker -->|Log metrics| Metrics[(Metrics/Logs)]:::metrics
+    
+    classDef postgres fill:#336791,stroke:#1E3A5F,stroke-width:2px,color:#fff
+    classDef redis fill:#DC382D,stroke:#8B2520,stroke-width:2px,color:#fff
+    classDef kafka fill:#231F20,stroke:#000,stroke-width:2px,color:#fff
+    classDef worker fill:#FF6B6B,stroke:#C92A2A,stroke-width:2px,color:#fff
+    classDef osrm fill:#FFA500,stroke:#CC8400,stroke-width:2px,color:#fff
+    classDef metrics fill:#20B2AA,stroke:#147872,stroke-width:2px,color:#fff
 ```
 
 **Key Components:**
@@ -109,17 +131,26 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Kafka_Refined[[Kafka: routes.refined]] -->|consume| RiderWorker[Rider Assignment Worker]
+    Kafka_Refined[[Kafka: routes.refined]]:::kafka -->|consume| RiderWorker[Rider Assignment Worker]:::worker
     
-    RiderWorker -->|1. Find nearest| Redis_Riders[(Redis GEO: riders:available)]
-    RiderWorker -->|2. Assign rider| PG_Riders[(Postgres: riders + batch_riders)]
+    RiderWorker -->|1. Find nearest| Redis_Riders[(Redis GEO: riders:available)]:::redis
+    RiderWorker -->|2. Assign rider| PG_Riders[(Postgres: riders + batch_riders)]:::postgres
     RiderWorker -->|3. Remove from pool| Redis_Riders
     
-    RiderSim[Rider Simulator] -->|POST /riders/:id/location| API[HTTP API]
+    RiderSim[Rider Simulator]:::simulator -->|POST /riders/:id/location| API[HTTP API]:::api
     API -->|Update location| Redis_Riders
     
-    API -->|Broadcast updates| WS[WebSocket Hub]
-    WS -->|Real-time location| Client[Client App]
+    API -->|Broadcast updates| WS[WebSocket Hub]:::websocket
+    WS -->|Real-time location| Client[Client App]:::frontend
+    
+    classDef kafka fill:#231F20,stroke:#000,stroke-width:2px,color:#fff
+    classDef worker fill:#FF6B6B,stroke:#C92A2A,stroke-width:2px,color:#fff
+    classDef redis fill:#DC382D,stroke:#8B2520,stroke-width:2px,color:#fff
+    classDef postgres fill:#336791,stroke:#1E3A5F,stroke-width:2px,color:#fff
+    classDef simulator fill:#9B59B6,stroke:#6C3483,stroke-width:2px,color:#fff
+    classDef api fill:#50C878,stroke:#2D7A4A,stroke-width:2px,color:#fff
+    classDef websocket fill:#FFD700,stroke:#B8860B,stroke-width:2px,color:#333
+    classDef frontend fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
 ```
 
 **Key Components:**
@@ -133,18 +164,26 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    RiderSim[Rider / Simulator] -->|POST /batches/:id/confirm-delivery| API[HTTP API]
+    RiderSim[Rider / Simulator]:::simulator -->|POST /batches/:id/confirm-delivery| API[HTTP API]:::api
     
-    API -->|1. Get batch path| PG_BatchPath[(Postgres: batch_paths)]
-    API -->|2. Get drop location| Location[Drop Coordinates]
+    API -->|1. Get batch path| PG_BatchPath[(Postgres: batch_paths)]:::postgres
+    API -->|2. Get drop location| Location[Drop Coordinates]:::compute
     
-    API -->|3. Verify distance| Haversine[Haversine Check]
-    Haversine -->|< 30m| Valid[Valid Delivery]
-    Haversine -->|> 30m| Invalid[409 Conflict]
+    API -->|3. Verify distance| Haversine[Haversine Check]:::compute
+    Haversine -->|< 30m| Valid[Valid Delivery]:::success
+    Haversine -->|> 30m| Invalid[409 Conflict]:::error
     
-    Valid -->|4. Update status| PG_Riders[(Postgres: batch_riders)]
-    Valid -->|5. Mark delivered| PG_Batches[(Postgres: batches)]
-    Valid -->|6. Notify client| WS[WebSocket]
+    Valid -->|4. Update status| PG_Riders[(Postgres: batch_riders)]:::postgres
+    Valid -->|5. Mark delivered| PG_Batches[(Postgres: batches)]:::postgres
+    Valid -->|6. Notify client| WS[WebSocket]:::websocket
+    
+    classDef simulator fill:#9B59B6,stroke:#6C3483,stroke-width:2px,color:#fff
+    classDef api fill:#50C878,stroke:#2D7A4A,stroke-width:2px,color:#fff
+    classDef postgres fill:#336791,stroke:#1E3A5F,stroke-width:2px,color:#fff
+    classDef compute fill:#9B59B6,stroke:#6C3483,stroke-width:2px,color:#fff
+    classDef success fill:#2ECC71,stroke:#27AE60,stroke-width:2px,color:#fff
+    classDef error fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
+    classDef websocket fill:#FFD700,stroke:#B8860B,stroke-width:2px,color:#333
 ```
 
 **Key Components:**
@@ -158,28 +197,32 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph Postgres
-        PG_Orders[(orders)]
-        PG_Batches[(batches)]
-        PG_BatchOrders[(batch_orders)]
-        PG_Paths[(path_templates)]
-        PG_BatchPath[(batch_paths)]
-        PG_Riders[(riders)]
-        PG_BatchRiders[(batch_riders)]
+    subgraph Postgres["PostgreSQL"]
+        PG_Orders[(orders)]:::postgres
+        PG_Batches[(batches)]:::postgres
+        PG_BatchOrders[(batch_orders)]:::postgres
+        PG_Paths[(path_templates)]:::postgres
+        PG_BatchPath[(batch_paths)]:::postgres
+        PG_Riders[(riders)]:::postgres
+        PG_BatchRiders[(batch_riders)]:::postgres
     end
     
-    subgraph Redis
-        Redis_H3[(h3 → path_ids)]
-        Redis_Path[(path → batches)]
-        Redis_Riders[(GEO: riders:available)]
+    subgraph Redis["Redis"]
+        Redis_H3[(h3 → path_ids)]:::redis
+        Redis_Path[(path → batches)]:::redis
+        Redis_Riders[(GEO: riders:available)]:::redis
     end
     
-    subgraph Kafka
-        Kafka_Provision[[path.provision]]
-        Kafka_Assign[[batches.assigned]]
-        Kafka_Refine[[routes.refine]]
-        Kafka_Refined[[routes.refined]]
+    subgraph Kafka["Kafka"]
+        Kafka_Provision[[path.provision]]:::kafka
+        Kafka_Assign[[batches.assigned]]:::kafka
+        Kafka_Refine[[routes.refine]]:::kafka
+        Kafka_Refined[[routes.refined]]:::kafka
     end
+    
+    classDef postgres fill:#336791,stroke:#1E3A5F,stroke-width:2px,color:#fff
+    classDef redis fill:#DC382D,stroke:#8B2520,stroke-width:2px,color:#fff
+    classDef kafka fill:#231F20,stroke:#000,stroke-width:2px,color:#fff
 ```
 
 **Storage Strategy:**
