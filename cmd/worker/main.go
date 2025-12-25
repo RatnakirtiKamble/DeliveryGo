@@ -157,6 +157,7 @@ func main() {
 		for {
 			msg, err := riderAssignConsumer.Read(ctx)
 			if err != nil {
+				log.Println("[rider-assign]", err)
 				return 
 			}
 

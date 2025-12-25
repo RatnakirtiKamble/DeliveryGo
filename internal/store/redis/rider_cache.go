@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"time"
+	"log"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -38,6 +39,8 @@ func (c *RiderCache) UpdateLocation(
 	pipe.Expire(ctx, "rider:"+riderID+":loc", time.Minute)
 
 	_, err := pipe.Exec(ctx)
+
+	log.Println("[redis] successfully updated cache")
 	return err 
 }
 

@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package matching; 
+
+option go_package = "DeliveryGO/internal/transport/grpc/matchingpb";
+
+message Order {
+    string id = 1;
+    double lat = 2;
+    double lon = 3;
+}
+
+message PathCandidate {
+    string path_id = 1;
+}
+
+message SelectBestPathRequest {
+    Order order = 1;
+    repeated PathCandidate candidates = 2;
+}
+message SelectBestPathResponse {
+    string best_path_id = 1;
+    int32 estimated_cost = 2;
+}
+service MatchingService {
+    rpc SelectBestPath(SelectBestPathRequest) 
+        returns (SelectBestPathResponse);
+}

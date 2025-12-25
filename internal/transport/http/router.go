@@ -18,10 +18,11 @@ import (
 func NewRouter(
 	orderSvc *order.Service,
 	batchSvc *batch.Service,
-	matchingSvc *matching.Service,
+	matchingClient matching.Client,
 	pathIndex *redis.PathIndex,
 	riderCache *redis.RiderCache,
 	batchPathStore *postgres.BatchPathStore,
+	pathTemplateStore *postgres.PathTemplateStore,
 	riderStore *postgres.RiderStore,
 	producer *kafkaq.Producer,
 	hub *ws.Hub,
@@ -39,7 +40,7 @@ func NewRouter(
 			handlers.CreateOrder(
 				orderSvc,
 				batchSvc,
-				matchingSvc,
+				matchingClient,
 				pathIndex,
 				producer,
 				hub,
@@ -61,6 +62,9 @@ func NewRouter(
 	r.Route("/debug", func(r chi.Router){
 		r.Get("/batch/{id}/path", handlers.DebugBatchPath(batchPathStore))
 		r.Get("/path/{id}/batches", handlers.DebugPathBatches(pathIndex))
+		r.Get("/batch/{id}/route", handlers.DebugBatchRoute(pathTemplateStore, batchPathStore),
+)
+
 	})
 
 	return r

@@ -8,11 +8,13 @@ import (
 )
 
 type Config struct {
-	HTTPAddr    	string
-	PostgresDSN 	string
-	RedisAddr		string 
-	OSRMAddr 		string
-	KafkaBrokers	[]string
+	HTTPAddr    		string
+	PostgresDSN 		string
+	RedisAddr			string 
+	OSRMAddr 			string
+	GRPCListenAddr 	string
+	GRPCDialAddr		string
+	KafkaBrokers		[]string
 }
 
 func LoadConfig() Config {
@@ -27,6 +29,9 @@ func LoadConfig() Config {
 			getEnv("KAFKA_BROKERS", "localhost:9092"),
 			",",
 		),
+
+		GRPCListenAddr: getEnv("GRPC_LISTEN_ADDR", ""),
+		GRPCDialAddr: getEnv("GRPC_DIAL_ADDR", ""),
 	}
 
 	if cfg.PostgresDSN == "" {

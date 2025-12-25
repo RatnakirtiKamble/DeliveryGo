@@ -1,6 +1,6 @@
 module github.com/RatnakirtiKamble/DeliveryGO
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.11
 
@@ -12,6 +12,8 @@ require (
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/segmentio/kafka-go v0.4.49
 	github.com/uber/h3-go/v4 v4.4.0
+	google.golang.org/grpc v1.78.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -19,6 +21,9 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251029180050-ab9386a59fda // indirect
 )
 
 require (
@@ -26,7 +31,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/joho/godotenv v1.5.1
-	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/sync v0.13.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 )

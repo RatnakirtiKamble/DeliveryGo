@@ -31,7 +31,7 @@ const maxAssignRetries = 3
 func CreateOrder(
 	orderSvc *order.Service,
 	batchSvc *batch.Service,
-	matchingSvc *matching.Service,
+	matchingClient matching.Client,
 	pathIndex *redis.PathIndex,
 	producer *kafkaq.Producer,
 	hub *ws.Hub,
@@ -121,7 +121,8 @@ func CreateOrder(
 
 		for i := 0; i < maxAssignRetries; i++ {
 
-			path, cost, err := matchingSvc.SelectBestPath(
+			path, cost, err := matchingClient.SelectBestPath(
+				r.Context(),
 				orderObj,
 				candidatePathIDs,
 			)

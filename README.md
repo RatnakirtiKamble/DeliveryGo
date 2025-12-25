@@ -232,6 +232,10 @@ Prereqs:
 
 - Docker & Docker Compose
 - Go 1.23+ (toolchain indicates 1.24.x is used in the repo)
+- ProtoBuf compiler (`protoc`) for generating any gRPC code (not required for basic usage)
+- ProtoGen Go plugin (`protoc-gen-go`)
+- ProtoGen Go GRPC plugin (`protoc-gen-go-grpc`) 
+- OSRM data files in `data/` (can be downloaded from [OSRM demo server](http://map.project-osrm.org/) or generated from OSM extracts)
 
 1) Start infra (Postgres, Kafka, Redis, OSRM)
 

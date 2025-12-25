@@ -55,3 +55,31 @@ func DebugPathBatches(
 		})
 	}
 }
+
+func DebugBatchRoute(
+	pathStore *pg.PathTemplateStore,
+	batchPathStore *pg.BatchPathStore,
+) http.HandlerFunc {
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		batchID := chi.URLParam(r, "id")
+
+		pathID, err := batchPathStore.GetPathForBatch(r.Context(), batchID)
+		if err != nil {
+			http.Error(w, "batch not found", http.StatusNotFound)
+			return
+		}
+
+		path, err := pathStore.GetByID(r.Context(), pathID)
+		if err != nil {
+			http.Error(w, "path not found", http.StatusNotFound)
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"batch_id": batchID,
+			"path_id":  path.ID,
+			"polyline": path.Polyline,
+		})
+	}
+}

@@ -44,11 +44,11 @@ func (w *RiderAssignmentWorker) Handle(
 		return err
 	}
 
-	lat, lon := 19.089, 73.002
+	lat, lon := 19.099822, 73.006617
 
 	riderID, err := w.riderCache.NearestRider(ctx, lat, lon)
 	if err != nil || riderID == "" {
-		log.Println("[rider-assign] no available riders")
+		log.Println("[rider-assign] no available riders", err)
 		return nil 
 	}
 

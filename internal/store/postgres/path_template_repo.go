@@ -74,3 +74,31 @@ func (s *PathTemplateStore) ListAll(
 
 	return paths, nil
 }
+
+func (s *PathTemplateStore) GetByID(
+	ctx context.Context,
+	id string,
+) (*domain.PathTemplate, error) {
+
+	var p domain.PathTemplate
+
+	err := s.pool.QueryRow(
+		ctx,
+		`SELECT id, store_id, h3_cell, base_eta, polyline
+		 FROM path_templates
+		 WHERE id = $1`,
+		id,
+	).Scan(
+		&p.ID,
+		&p.StoreID,
+		&p.H3Cell,
+		&p.BaseETA,
+		&p.Polyline,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &p, nil
+}

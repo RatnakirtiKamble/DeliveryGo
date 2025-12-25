@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"log"
 
+	"google.golang.org/grpc"
+	pb "github.com/RatnakirtiKamble/DeliveryGO/internal/transport/grpc/matchingpb"
 	orderSvc "github.com/RatnakirtiKamble/DeliveryGO/internal/service/order"
 	batchSvc "github.com/RatnakirtiKamble/DeliveryGO/internal/service/batch"
 	matchingSvc "github.com/RatnakirtiKamble/DeliveryGO/internal/service/matching"
@@ -18,6 +20,7 @@ import (
 
 type App struct {
 	Router http.Handler
+	MatchingService *matchingSvc.Service
 }
 
 func New(cfg Config) (*App, error) {
@@ -41,8 +44,10 @@ func New(cfg Config) (*App, error) {
 
 
 	matchingService := matchingSvc.NewService(
-		paths, 
-		estimator)
+		paths,
+		estimator,
+	)
+
 
 	orderStore := pg.NewOrderStore(pool)
 	batchStore := pg.NewBatchStore(pool)
@@ -66,15 +71,29 @@ func New(cfg Config) (*App, error) {
 
 	producer := kafkaq.NewProducer(cfg.KafkaBrokers)
 
+	grpcConn, err := grpc.Dial(
+		cfg.GRPCDialAddr,
+		grpc.WithInsecure(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	matchingClient := matchingSvc.NewGRPCClient(
+		pb.NewMatchingServiceClient(grpcConn),
+	)
+
+
 	hub := ws.NewHub()
 
 	router := httpt.NewRouter(
 		orderService,
 		batchService,
-		matchingService,
+		matchingClient,
 		pathIndex,
 		riderCache,
 		batchPathStore,
+		pathTemplateStore,
 		riderStore,
 		producer,
 		hub,
@@ -82,5 +101,6 @@ func New(cfg Config) (*App, error) {
 
 	return &App{
 		Router: router,
+		MatchingService: matchingService,
 	}, nil
 }
