@@ -1,0 +1,219 @@
+openapi: 3.0.3
+
+info:
+  title: DeliveryGO API
+  description: >
+    DeliveryGO is a distributed logistics platform for real-time order batching,
+    route optimization, and rider assignment using Kafka, Redis (H3), PostgreSQL,
+    gRPC, and WebSockets.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Orders
+  - name: Riders
+  - name: Debug
+  - name: WebSocket
+
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Create a new delivery order
+      description: >
+        Creates a new order, assigns it to a batch, selects the best delivery path
+        using H3-based lookup and matching, and triggers asynchronous optimization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "200":
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateOrderResponse"
+        "409":
+          description: Paths are being provisioned for this area
+        "500":
+          description: Internal server error
+
+  /riders/location:
+    post:
+      tags: [Riders]
+      summary: Update rider location (simulated GPS)
+      description: >
+        Updates the rider's current GPS location in Redis and marks the rider as available.
+        Used by the simulator or rider mobile app.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiderLocationUpdate"
+      responses:
+        "204":
+          description: Location updated
+        "400":
+          description: Invalid request
+        "500":
+          description: Internal server error
+
+  /riders/{rider_id}/delivered:
+    post:
+      tags: [Riders]
+      summary: Confirm delivery completion
+      description: >
+        Confirms that a rider has delivered all packages for a batch.
+        Used to simulate GPS-confirmed delivery.
+      parameters:
+        - name: rider_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryConfirmation"
+      responses:
+        "200":
+          description: Delivery confirmed
+        "409":
+          description: Invalid delivery state
+        "500":
+          description: Internal server error
+
+  /debug/batch/{id}/path:
+    get:
+      tags: [Debug]
+      summary: Debug batch → path mapping
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Batch path mapping
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batch_id:
+                    type: string
+                  path_id:
+                    type: string
+        "404":
+          description: Batch not found
+
+  /debug/path/{id}/batches:
+    get:
+      tags: [Debug]
+      summary: Debug path → batches mapping (Redis)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Batches assigned to a path
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path_id:
+                    type: string
+                  batches:
+                    type: array
+                    items:
+                      type: string
+
+  /ws:
+    get:
+      tags: [WebSocket]
+      summary: WebSocket for real-time system events
+      description: >
+        Streams real-time batch updates, path assignments, and delivery state changes.
+      responses:
+        "101":
+          description: Switching protocols (WebSocket)
+
+components:
+
+  schemas:
+
+    CreateOrderRequest:
+      type: object
+      required: [user_id, lat, lon]
+      properties:
+        user_id:
+          type: string
+          example: user-123
+        lat:
+          type: number
+          format: double
+          example: 19.1046
+        lon:
+          type: number
+          format: double
+          example: 73.0039
+
+    CreateOrderResponse:
+      type: object
+      properties:
+        order_id:
+          type: string
+          example: 8d91f2b3-8cbb-4f10-a0c5-b42b2c8e9e1a
+
+    RiderLocationUpdate:
+      type: object
+      required: [rider_id, lat, lon]
+      properties:
+        rider_id:
+          type: string
+          example: rider-42
+        lat:
+          type: number
+          format: double
+        lon:
+          type: number
+          format: double
+
+    DeliveryConfirmation:
+      type: object
+      required: [batch_id, delivered_at]
+      properties:
+        batch_id:
+          type: string
+        delivered_at:
+          type: string
+          format: date-time
